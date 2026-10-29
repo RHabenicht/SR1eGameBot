@@ -8,7 +8,7 @@
  */
 // require crypto for reminders (random strings)
 const crypto = require('crypto');
-const {config} = require('./config');
+const {config} = require('./settings');
 const { logSpam, logWrite, logError } = require('./log');
 const {Database} = require('./db');
 const {ObjectId} = require('mongodb');

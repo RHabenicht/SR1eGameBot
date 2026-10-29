@@ -21,55 +21,95 @@ Instructions on using the bot are below, after the self-hosting instructions.
 
 [Click here to deploy the bot on your server](https://discordapp.com/oauth2/authorize?client_id=609274260007026689&scope=bot&permissions=3136).
 
-### To self-host:
+### Runtime and installation
 
-1. Install node.js and test that it's working. You'll need this in order to set up the bot.
+Use **Node.js 24 LTS (24.17.0 or newer within 24.x)** and **npm 11**. The
+`.nvmrc` selects Node 24.22.1; `packageManager` records npm 11.9.0. Install those
+versions before running the following commands from the repository directory:
 
-2. Get your Discord auth token via the *New Application* button at http://discordapp.com/developers/applications/me and put the auth token in a `discordauth.json` file, in the same directory as main.js. The format:
-```
-{
-"token": "your auth token goes here"
-}
-```
-
-**IMPORTANT:** If you're using git, make sure you add `discordauth.json` to your `.gitignore` file before your next commit.
-
-3a. [Install MongoDB](https://www.mongodb.com/try/download/community) and test that it's working (for example by connecting to it with [MongoDB Compass](https://www.mongodb.com/try/download/compass)); and then create a database called `sr1egamebot`. (If you're using Compass, you'll need to also create a collection in that database; in that case, create the collection `folders`.)
-
-3b. From the bot's source, copy `config.example.js` to `config.js`.
-
-**IMPORTANT:** If you're using git, make sure you add `config.js` to your `.gitignore` file before your next commit.
-
-Open `config.js` in your code editor and fill in your MongoDB connection string. It has the format:
-
-```
-mongodb://USERNAME:PASSWORD@HOST:PORT/DB
-```
-For example:
-```
-mongodb://my-db-user:my-db-password@127.0.0.1:27017/sr1egamebot
-```
-If you use a strong password with symbols, you might need to encode the password, like this:
-```
-mongodb://my-db-user:${encodeURIComponent('my-db-pass')}@127.0.0.1:27017/sr1egamebot
+```sh
+npm ci --ignore-scripts
+npm run check
+npm test
+npm audit --omit=dev
 ```
 
-3c. If you used a previous version of the bot, you'll need to migrate your data away from Google Drive, using the provided script `migrate.js`: see the section **Data Migration**, below.
+Keep `package-lock.json` in version control. `node_modules` is generated locally
+and must not be committed or copied from an older checkout. Use `npm ci` on
+subsequent deployments so the installed dependency tree matches the lockfile.
+The installation does not require dependency lifecycle scripts.
 
-3d. For the sake of security, configure MongoDB for password authentication. I also strongly recommend: a) hosting MongoDB on the same server that the bot runs from; b) setting the firewall to reject connections to MongoDB from outside; c) leaving MongoDB on its default configuration to only accept connections from the same computer.
+### Database and encryption configuration
 
-[Here's how to enable password authentication for MongoDB](https://www.mongodb.com/docs/manual/tutorial/configure-scram-client-authentication/).
+Install MongoDB and create the `sr1egamebot` database. The application uses
+MongoDB driver 4.x in this maintenance update. Configure database authentication
+and restrict database access to the bot host or another trusted private network.
 
+Choose one configuration method:
 
-4. Run GameBot locally by going to its directory and running `node .` (with the period).
-  * If you plan on self-hosting at home or pushing files to the web via FTP, you can skip to step #9.
-  * If you plan on hosting via Heroku and deploying via GitHub, continue with the following steps:
-5. On your deployment server, create an environment variable:
-  * ***TOKEN*** should have the contents of the ***discordauth.json*** file.
-6. Publish your copy of the bot to your repo under the master branch.
-7. Link Heroku to your GitHub repo, and tell Heroku to auto-deploy when you push to master.
-8. In Heroku, under "Configure Dynos", use the "worker dyno", not the "web dyno".
-9. Invite the bot to your server! Replace the XX's in the following link with your bot's ID number: discordapp.com/oauth2/authorize?client_id=XXXXXXXXXXX&scope=bot&permissions=3136
+* **Existing local configuration:** keep your ignored `config.js`. It takes
+  precedence over the environment-backed example. The file must export
+  `{config}` with `dbUrl`, a 32-byte `Buffer` named `cryptoKey`, and a 16-byte
+  `Buffer` named `cryptoVector`.
+* **New local configuration:** copy `config.example.js` to `config.js` and fill
+  in those values, either directly or through its environment variables.
+* **Environment-only deployment:** leave `config.js` absent and set
+  `MONGODB_URI`, `CRYPTO_KEY_HEX` (64 hexadecimal characters), and
+  `CRYPTO_IV_HEX` (32 hexadecimal characters). The application then loads
+  `config.example.js` as its environment-backed configuration.
+
+A connection string has the form
+`mongodb://USERNAME:PASSWORD@HOST:PORT/sr1egamebot`. URI-encode special characters
+in the username and password.
+
+**For an existing database, reuse its exact encryption key and vector.** This
+update does not migrate stored ciphertext or generate replacement keys. Keep a
+backup of the database and its original encryption material together with your
+recovery procedures.
+
+For a **new database only**, `node make-crypto-vars.js` generates the two Buffer
+assignments in the ignored `crypto-vars.txt` file. Copy those assignments into
+`config.js`, or convert those same byte values to hex for environment-only
+configuration. Keep the generated material private and backed up.
+
+If upgrading from the old Google Drive storage, see **Data Migration** below.
+
+### Discord configuration and startup
+
+Create a bot application in the [Discord Developer Portal](https://discord.com/developers/applications)
+and enable **Message Content Intent** for its existing prefix commands.
+Provide its token in either of these ways:
+
+* Set the `TOKEN` environment variable to the **raw bot token**, without a
+  `Bot ` prefix or a JSON object.
+* Create the ignored `discordauth.json` file next to `main.js`:
+
+```json
+{"token": "your-bot-token"}
+```
+
+`TOKEN` takes precedence over the local token file. An empty or malformed
+explicit `TOKEN` is an error; it does not silently fall back to local credentials.
+
+Start the bot with `npm start` or `node main.js`. Startup validates configuration,
+connects to MongoDB, initializes stored state, logs in to Discord, and then
+activates saved reminders and accepts commands. A startup failure closes opened
+resources and exits with a nonzero status so your process supervisor can handle
+restarts. It does not retry invalid credentials in a loop.
+
+The `Procfile` continues to run `worker: node main.js`. On a platform that uses
+Procfiles, select the **worker** process and supply the configuration above.
+Invite your own bot application to your Discord server using its application ID
+and the permissions required for messages and reactions.
+
+### Development checks
+
+CI uses the same Node/npm versions, a clean installation, syntax checks, offline
+regression tests, and an npm audit that fails for high or critical advisories.
+The tests replace Discord and MongoDB network boundaries; they do not establish
+that a live deployment can authenticate or that a real database migration works.
+Before deploying, use a separate test bot and database to check persisted macros,
+initiative, ammo, scenes, reactions, and reminders across a restart.
 
 ### Data Migration
 

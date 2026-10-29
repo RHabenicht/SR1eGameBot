@@ -6,15 +6,15 @@
  * Released under the terms of the UnLicense. This work is in the public domain.
  * Released as-is with no warranty or claim of usability for any purpose.
  */
-const { logSpam, logWrite } = require('./log');
+const { logSpam, logWrite, logError } = require('./log');
 const {
   findFolderByName, _addRemindersSetTimeoutPayload, getActiveReminders,
   createFolder, ensureFolderByName, doNothing
 } = require('./api');
 // Checked 9/1/22
-async function initAll() {
+async function initAll({scheduleReminders = true} = {}) {
   await initInitiative();
-  await initReminders();
+  await initReminders({scheduleReminders});
 }
 // Checked 9/1/22
 async function initInitiative() {
@@ -38,7 +38,7 @@ async function initInitiative() {
   }
 }
 // Checked 9/1/22
-async function initReminders() {
+async function initReminders({scheduleReminders = true} = {}) {
   const userDataFolder = await findFolderByName('UserData', null, doNothing, false);
   await ensureFolderByName('reminders', userDataFolder._id.toString(), false);
   let reminderFolder = await findFolderByName(
@@ -47,7 +47,10 @@ async function initReminders() {
 
   global.folderID.reminders = reminderFolder._id.toString();
   global.reminders = await getActiveReminders();
-
+  if (scheduleReminders) startReminders();
+}
+// The bot activates saved reminders only after Discord login has completed.
+function startReminders() {
   if (global.reminders.length > 0) {
     for (let x = 0; x < global.reminders.length; x++) {
       global.reminders[x].MilliSecondsFromNow =
@@ -55,15 +58,17 @@ async function initReminders() {
       if (global.reminders[x].playersString !== undefined) {
         logSpam(`Reminder shortID ${global.reminders[x].shortID} found:`
           + ` playersString = ${global.reminders[x].playersString}`);
-        global.reminders[x].timeoutID = setTimeout(
-          _addRemindersSetTimeoutPayload,
-          global.reminders[x].MilliSecondsFromNow,
-          global.reminders[x]
-        );
+        const reminder = global.reminders[x];
+        reminder.timeoutID = setTimeout(() => {
+          _addRemindersSetTimeoutPayload(reminder).catch(logError);
+        }, Math.max(0, reminder.MilliSecondsFromNow));
       }
     }
   }
 }
+function stopReminders() {
+  for (const reminder of global.reminders || []) clearTimeout(reminder.timeoutID);
+}
 module.exports = {
-  initAll, initInitiative, initReminders
+  initAll, initInitiative, initReminders, startReminders, stopReminders
 };

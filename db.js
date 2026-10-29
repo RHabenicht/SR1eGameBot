@@ -1,21 +1,13 @@
-const {config} = require('./config');
-const {logError, logWrite} = require('./log');
+const {config} = require('./settings');
+const {logWrite} = require('./log');
 const {MongoClient} = require('mongodb');
 const mdb = new MongoClient( config.dbUrl );
-try {
-  mdb.connect( (err, ) => {
-    if (err) {
-      logError(err);
-      logError(`Can't proceed: terminating`);
-      process.exit();
-    }
-    else {
-      logWrite(`Connected to MongoDB`);
-    }
-  });
+async function connectDatabase() {
+  await mdb.connect();
+  logWrite('Connected to MongoDB');
 }
-catch (e) {
-  logError(`Caught: ${e}`);
+async function closeDatabase() {
+  await mdb.close();
 }
 class Database {
   constructor() {
@@ -25,4 +17,4 @@ class Database {
     return mdb.db("sr1egamebot").collection(tableName);
   }
 }
-module.exports = {db: new Database(), Database: Database};
+module.exports = {db: new Database(), Database, connectDatabase, closeDatabase};
