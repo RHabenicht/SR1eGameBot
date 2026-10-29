@@ -194,7 +194,7 @@ async function ensureTriplet(msg) {
       channelFolderID = channelFolderID._id.toString();
       if (channelFolderID)
         addToCache(
-          {name: msg.channel.id, id: channelFolderID, parents: [serverFolderID]}, 'channel'
+          {name: gmPlayChannelID, id: channelFolderID, parents: [serverFolderID]}, 'channel'
         );
     } catch (e) { console.log(e); }
   }
@@ -222,7 +222,7 @@ async function ensureTriplet(msg) {
   logSpam(' [ ==================== exiting ensureTriplet ============ ]')
 }
 // Rewritten 9/1/22
-async function findUserFolderDBIDFromMsg(msg, usePlayChannel=false) {
+async function findUserFolderDBIDFromMsg(msg, usePlayChannel=false, reportMissing=true) {
   let r = null; // the userFolderID
   let s = null; // the server id
   let discordChannelID = -1;
@@ -254,7 +254,7 @@ async function findUserFolderDBIDFromMsg(msg, usePlayChannel=false) {
   );
   if (serverFolder) logSpam("Seek sID: " + serverFolder._id.toString());
   if (!serverFolder) {
-    msg.reply(':man_facepalming: Something went wrong. Please try your command '
+    if (reportMissing) msg.reply(':man_facepalming: Something went wrong. Please try your command '
       + 'again. :man_facepalming:')
     .catch((e) => { logError(e); });
     return -1;
@@ -264,13 +264,19 @@ async function findUserFolderDBIDFromMsg(msg, usePlayChannel=false) {
   );
   if (channelFolder) logSpam("Seek cID: " + channelFolder._id.toString());
   if (!channelFolder) {
-    msg.reply(':man_facepalming: Something went wrong. Please try your command '
+    if (reportMissing) msg.reply(':man_facepalming: Something went wrong. Please try your command '
       + 'again. :man_facepalming:')
     .catch((e) => { logError(e); });
     return -1;
   }
   // return the file ID
   r = await findFolderByName(msg.author.id, channelFolder._id.toString());
+  if (!r) {
+    if (reportMissing) msg.reply(':man_facepalming: Something went wrong. Please try your command '
+      + 'again. :man_facepalming:')
+    .catch((e) => { logError(e); });
+    return -1;
+  }
   logSpam("Seek uID: " + r._id.toString());
   return r._id.toString();
 }
@@ -751,8 +757,10 @@ async function getPlayChannel(msg) {
     logSpam('Returning play channel from cache');
     return r.playChannel;
   }
-  const userFolderID = await findUserFolderDBIDFromMsg(msg);
-  if (userFolderID === -1) return -1;
+  // A first command has no user/channel folders yet. Discovery is a quiet
+  // lookup; ensureTriplet will create them using the actual channel ID.
+  const userFolderID = await findUserFolderDBIDFromMsg(msg, false, false);
+  if (userFolderID === -1) return msg.channel.id;
   const filename = 'gmPlayChannel';
   const playChannelDBID = await findStringIDByName(filename, userFolderID);
   try {
