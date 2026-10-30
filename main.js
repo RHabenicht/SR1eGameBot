@@ -11,7 +11,6 @@ const {loadSettings, initializeGlobals, startBot, reportStartupFailure} = requir
 async function start() {
   const {token} = loadSettings();
   const { resetCache } = require('./api');
-  const { openFile, showCache, clearCache } = require('./admin');
   const { logSpam, logWrite, logError } = require('./log');
   const {handleAmmoCommand} = require('./ft_ammo');
   const {handleRollCommand} = require('./ft_dicebot');
@@ -79,8 +78,6 @@ async function start() {
 
   // @ =========== HANDLEMESSAGE FUNCTION ============
   async function handleMessage(msg, user=msg.author) {
-    // stop confusing people during development!!
-    // if (user.id !== '360086569778020352') return;
     // check if message starts with `!`
     let message = msg.content;
     if (message.substring(0, 1) === '!') {
@@ -95,13 +92,10 @@ async function start() {
           await handleHelpCommand(msg, cmd, args);
         break;
         case 'open':
-          if (user.id == '360086569778020352') await openFile(msg, args);
-        break;
         case 'showcache':
-          if (user.id == '360086569778020352') await showCache(msg);
-        break;
         case 'clearcache':
-          if (user.id == '360086569778020352') await clearCache(msg);
+          // Global cache inspection is unavailable through Discord. It can expose
+          // data from unrelated servers; no Discord account receives an exception.
         break;
         case 'init':
         case 'init2':

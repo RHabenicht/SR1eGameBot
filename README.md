@@ -121,13 +121,14 @@ After migrating, you will have more entries in the `folders` collection than wer
 
 Unfortunately, this is beyond the scope of these instructions.
 
-### Gaining access to admin commands:
+### Administrative commands
 
-There are a few admin commands that are hard-coded only to respond to me, the bot's author. If you self-host, you can gain access to them:
+The legacy `!open`, `!showcache`, and `!clearcache` commands are disabled in the
+maintained branch. They inspect or change shared process state, and their output
+can contain data from other servers. No Discord account has an exception.
 
-1. Find out your Discord ID (it's ***not*** your username followed by a few numbers; it's all numbers; it will be the final number that appears in your bot's log output when you use any of the initiative commands).
-2. Do a find-and-replace in main.js, replacing all occurrences of my Discord ID, 360086569778020352, with your Discord ID.
-3. Push the changes and restart the bot.
+Manage the bot through your hosting account and database tools. Normal game
+commands remain available.
 
 ## Shadowrun Dicebot Features
 

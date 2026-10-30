@@ -7,7 +7,7 @@ const startup = require('../startup');
 const {loadModule} = require('./helpers/load-module');
 
 function makeBot({login, roll = async () => {}, initialize = async () => {}} = {}) {
-  const calls = [], errors = [], replies = [];
+  const calls = [], errors = [], replies = [], adminCalls = [];
   let client;
   class FakeClient extends EventEmitter {
     constructor() {
@@ -26,7 +26,12 @@ function makeBot({login, roll = async () => {}, initialize = async () => {}} = {
   const stubs = {
     './startup': {...startup, loadSettings: () => ({token: 'test-token'})},
     'discord.js': {...Discord, Client: FakeClient},
-    './api': {resetCache() {}}, './admin': {},
+    './api': {resetCache() {}},
+    './admin': {
+      openFile: () => adminCalls.push('open'),
+      showCache: () => adminCalls.push('showcache'),
+      clearCache: () => adminCalls.push('clearcache')
+    },
     './log': {logWrite() {}, logSpam() {}, logError: error => errors.push(error)},
     './init': {
       initAll: async options => {
@@ -46,7 +51,8 @@ function makeBot({login, roll = async () => {}, initialize = async () => {}} = {
   const {exports} = loadModule('main.js', stubs);
   const message = {content: '!3', author: {id: 'player', bot: false},
     reply: async value => replies.push(value)};
-  return {start: exports.start, get client() { return client; }, calls, errors, replies, message};
+  return {start: exports.start, get client() { return client; }, calls, errors, replies,
+    adminCalls, message};
 }
 
 test('does not connect merely by importing the main module', () => {
@@ -102,6 +108,24 @@ test('human rerolls retain the reacting user and bot messages/reactions are igno
   bot.client.emit(Discord.Events.MessageReactionAdd, reaction, {id: 'reroller', bot: false});
   await nextTurn();
   assert.deepEqual(users, ['reroller']);
+});
+
+test('legacy global-data admin commands cannot be invoked by messages or reactions', async () => {
+  const bot = makeBot();
+  await bot.start();
+  for (const id of ['360086569778020352', 'ordinary-player']) {
+    const user = {id, bot: false};
+    for (const command of ['open', 'showcache', 'clearcache']) {
+      const message = {...bot.message, content: `!${command} example-file`, author: user};
+      bot.client.emit(Discord.Events.MessageCreate, message);
+      bot.client.emit(Discord.Events.MessageReactionAdd,
+        {emoji: {name: '🎲'}, message}, user);
+    }
+  }
+  await nextTurn();
+  assert.deepEqual(bot.adminCalls, []);
+  assert.deepEqual(bot.errors, []);
+  assert.deepEqual(bot.replies, []);
 });
 
 test('failed login closes resources and leaves command handlers inactive', async () => {
