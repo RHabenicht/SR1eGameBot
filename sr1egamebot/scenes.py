@@ -13,10 +13,12 @@ class SceneService:
         self,
         repository: LegacyRepository,
         *,
+        client: Any | None = None,
         add_status: Callable[[Any, str], Any] = lambda _msg, text: text,
         log: Callable[[str], Any] = lambda _message: None,
     ) -> None:
         self._repository = repository
+        self._client = client
         self._add_status = add_status
         self._log = log
 
@@ -116,9 +118,10 @@ class SceneService:
             await self._reply(msg, "That scene wasn't found.")
             return
         scene_name, music, text = parts[0], parts[1], "\n|||\n".join(parts[2:])
-        destination = msg.client.get_channel(int(channel))
+        client = self._client or msg.client
+        destination = client.get_channel(int(channel))
         if destination is None:
-            destination = await msg.client.fetch_channel(int(channel))
+            destination = await client.fetch_channel(int(channel))
         music_text = f"\n\nSoundtrack:\n{music}" if music else ""
         await destination.send(f"{text}{music_text}")
         await self._reply(msg, f'Scene "{scene_name}" was just deployed in channel <#{channel}>.')

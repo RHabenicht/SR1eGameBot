@@ -253,6 +253,12 @@ class InitiativeService:
         count = len(entries) if replace else len(result)
         await self._reply(msg, f"Your NPC's for this channel {verb} {count} NPC's.")
 
+    async def set_npcs(self, msg: Any, args: Sequence[str]) -> None:
+        await self._npc_command(msg, args, replace=True)
+
+    async def add_npcs(self, msg: Any, args: Sequence[str]) -> None:
+        await self._npc_command(msg, args, replace=False)
+
     async def list_npcs(self, msg: Any) -> None:
         if not await self._server_only(msg): return
         play = await self._play(msg)
