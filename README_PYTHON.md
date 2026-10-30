@@ -11,8 +11,8 @@ This is an incomplete development port. Python services now cover configuration
 and startup sequencing, d6 rolls and command parsing, AES-256-CBC compatibility,
 the existing MongoDB folder/string schema, macros, scenes, reminders, initiative
 data and ammunition. A Discord client and prefix dispatcher now connect those
-services. Help pages remain incomplete, so this is still a development build
-and not a replacement for the Node.js worker.
+services, including all existing help topics. It remains a development build,
+not a production replacement for the Node.js worker.
 
 Run the isolated unit suite with `uv run --locked python -m unittest discover -s tests -v`.
 The tests use synthetic credentials and an in-memory MongoDB substitute. They do

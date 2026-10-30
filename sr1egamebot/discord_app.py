@@ -8,6 +8,7 @@ from .ammo import AmmoService
 from .commands import CommandDispatcher
 from .config import BotConfig, load_config
 from .crypto_compat import AESCipher
+from .help import HelpService
 from .initiative import InitiativeService
 from .macros import MacroService
 from .reminders import ReminderCommandService, ReminderManager, ReminderService, parse_datetime
@@ -65,14 +66,21 @@ async def run_bot(config: BotConfig | None = None, client: Any | None = None) ->
     scenes = SceneService(repository, client=discord_client)
     reminders = ReminderCommandService(repository, manager, persistence)
     ammo = AmmoService(repository)
-    options = UserOptionCommands(
-        UserOptions(repository),
+    user_options = UserOptions(repository)
+    maintenance_status = (
         "\n**Bzzt. Hoi!** Encryption is go! `!skipstatus` to hide this message! "
-        "See `!help troubleshoot` if you suspect a bug!",
+        "See `!help troubleshoot` if you suspect a bug!"
     )
+    options = UserOptionCommands(user_options, maintenance_status)
+
+    async def add_maintenance_status(msg: Any, output: str) -> str:
+        skipped = await user_options.get(msg.author.id, "skipStatusMsg")
+        return output if skipped == maintenance_status else output + " " + maintenance_status
+
+    help_service = HelpService(add_maintenance_status)
     dispatcher = CommandDispatcher(
         initiative=initiative, macros=macros, scenes=scenes,
-        reminders=reminders, ammo=ammo, user_options=options,
+        reminders=reminders, ammo=ammo, user_options=options, help_service=help_service,
     )
     accepting_commands = False
 

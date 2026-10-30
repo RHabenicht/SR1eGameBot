@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from .ammo import AmmoService
+from .help import HelpService
 from .initiative import InitiativeService
 from .macros import MacroService
 from .reminders import ReminderCommandService
@@ -25,13 +26,15 @@ class CommandDispatcher:
 
     def __init__(self, *, initiative: InitiativeService, macros: MacroService,
                  scenes: SceneService, reminders: ReminderCommandService,
-                 ammo: AmmoService, user_options: UserOptionCommands | None = None) -> None:
+                 ammo: AmmoService, user_options: UserOptionCommands | None = None,
+                 help_service: HelpService | None = None) -> None:
         self.initiative = initiative
         self.macros = macros
         self.scenes = scenes
         self.reminders = reminders
         self.ammo = ammo
         self.user_options = user_options
+        self.help_service = help_service
 
     async def on_message(self, msg: Any, user: Any | None = None) -> None:
         content = getattr(msg, "content", "")
@@ -102,6 +105,8 @@ class CommandDispatcher:
             await self.reminders.cancel(msg, args)
         elif command == "ammo":
             await self.ammo.command(msg, args)
+        elif command in {"help", "inithelp"} and self.help_service is not None:
+            await self.help_service.command(msg, command, args)
         elif command in {"help", "inithelp"}:
             await self._unported(msg, "Help")
         elif command == "skipstatus" and self.user_options is not None:
