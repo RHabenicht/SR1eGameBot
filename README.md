@@ -19,6 +19,8 @@ If the bot is already running, start with [Dice Commands](#dice-commands).
 - [Legacy Data Migration](#legacy-data-migration)
 - [Admin Commands](#admin-commands)
 - [Credits and License](#credits-and-license)
+- [Terms of Service](TERMS.md)
+- [Privacy Policy](PRIVACY.md)
 
 ## Installation and Hosting
 
@@ -572,9 +574,9 @@ The importer may report fewer folders than the archive appears to contain. In a 
 
 ## Admin Commands
 
-The admin commands `!open`, `!showcache`, and `!clearcache` still check Nathan Hawks' numeric Discord user ID in `main.js`.
+The maintained branch disables `!open`, `!showcache`, and `!clearcache`. These legacy commands can expose shared process data from other servers. No Discord account has an exception.
 
-If you need those commands on your own installation, change that ID in the permission checks to your numeric Discord user ID and restart the bot. A username or display name won't work.
+Manage the bot through your hosting account and database tools. Normal game commands remain available.
 
 ## Credits and License
 
