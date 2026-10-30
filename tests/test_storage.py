@@ -74,7 +74,8 @@ class MemoryCollection:
         return SimpleNamespace(inserted_id=stored["_id"])
 
     async def update_one(self, query, update, upsert=False):
-        document = await self.find_one(query)
+        document = next((record for record in self.documents
+                         if all(record.get(key) == value for key, value in query.items())), None)
         if document is None:
             if not upsert:
                 return SimpleNamespace(matched_count=0, upserted_id=None)
