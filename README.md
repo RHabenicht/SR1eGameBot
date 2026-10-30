@@ -1,346 +1,587 @@
-# SR1eGameBot
+# SR1e-3e GameBot
 
-## What It Is
+I maintain this fork of Nathan Hawks' SR1eGameBot for Discord games using Shadowrun First, Second, or Third Edition. It handles d6 rolls, target numbers, the Rule of 6, opposed tests, modifiers, and saved rolls.
 
-A Discord dicebot for Shadowrun 1e/2e/3e, which does d6 rolls with modifiers, as well as Success Tests and Opposed Success Tests. It can also store **dice macros,** and even generates **initiative** for Shadowrun 1st-3rd Editions -- both forwards and backwards. **New in 2022**
-it also does **reminders**, **ammo tracking**, **scene text and music**, and has a
-**virtual GM screen** for hiding your prep from your players. And, hey, why not: it also
-does **initiative for Cyberpunk 2020 and Cyberpunk RED**.
+There are also commands for initiative, ammunition, session reminders, and scene descriptions. You can prepare material in a private GM channel and send it to the game channel during play. The initiative system includes Cyberpunk 2020 and Cyberpunk RED.
 
-Instructions on using the bot are below, after the self-hosting instructions.
+If the bot is already running, start with [Dice Commands](#dice-commands).
 
-* <a href="#how-to-install">How to Install</a>
-* <a href="#shadowrun-dicebot-features">Shadowrun Dicebot Features</a>
-* <a href="#boom-initiative-system-boom">Initiative System</a>
-* <a href="#blue_book-prepared-scenes-with-or-without-music-blue_book">Prepared Scenes</a>
-* <a href="#ninja-virtual-gm-screen-ninja">Virtual GM Screen</a>
-* <a href="#alarm_clock-reminders-alarm_clock">Reminders</a>
-* <a href="#gun-ammo-tracking-gun">Ammo Tracking</a>
+- [Installation and Hosting](#installation-and-hosting)
+- [Dice Commands](#dice-commands)
+- [Saved Rolls](#saved-rolls)
+- [Initiative](#initiative)
+- [Prepared Scenes](#prepared-scenes)
+- [Virtual GM Screen](#virtual-gm-screen)
+- [Session Reminders](#session-reminders)
+- [Ammo Tracking](#ammo-tracking)
+- [Other Commands and Notes](#other-commands-and-notes)
+- [Development Checks](#development-checks)
+- [Legacy Data Migration](#legacy-data-migration)
+- [Admin Commands](#admin-commands)
+- [Credits and License](#credits-and-license)
+- [Terms of Service](TERMS.md)
+- [Privacy Policy](PRIVACY.md)
 
-## How to Install
+## Installation and Hosting
 
-[Click here to deploy the bot on your server](https://discordapp.com/oauth2/authorize?client_id=609274260007026689&scope=bot&permissions=3136).
+These instructions cover the `maintenance/dependencies-startup` branch.
 
-### Runtime and installation
+You need Node.js, MongoDB, and a Discord bot application. You can run the bot on your own computer or a hosting service that keeps a Node.js process running. If that computer or process stops, the bot goes offline.
 
-Use **Node.js 24 LTS (24.17.0 or newer within 24.x)** and **npm 11**. The
-`.nvmrc` selects Node 24.22.1; `packageManager` records npm 11.9.0. Install those
-versions before running the following commands from the repository directory:
+### 1. Install Node.js and the dependencies
+
+Use **Node.js 24.17.0 or later in the 24.x series** and **npm 11**. The `.nvmrc` file specifies Node.js 24.22.1; `package.json` specifies npm 11.9.0.
+
+Check your installed versions:
+
+```sh
+node --version
+npm --version
+```
+
+Download or clone the branch, open a terminal in the bot's directory, and install the dependencies:
 
 ```sh
 npm ci --ignore-scripts
-npm run check
-npm test
-npm audit --omit=dev
 ```
 
-Keep `package-lock.json` in version control. `node_modules` is generated locally
-and must not be committed or copied from an older checkout. Use `npm ci` on
-subsequent deployments so the installed dependency tree matches the lockfile.
-The installation does not require dependency lifecycle scripts.
+Keep `package-lock.json` in the repository. npm builds `node_modules` during installation, so leave that directory out of GitHub and don't reuse an old copy.
 
-### Database and encryption configuration
+### 2. Configure MongoDB and encryption
 
-Install MongoDB and create the `sr1egamebot` database. The application uses
-MongoDB driver 4.x in this maintenance update. Configure database authentication
-and restrict database access to the bot host or another trusted private network.
+The MongoDB database is named `sr1egamebot`. Require authentication and limit connections to the bot's machine or a trusted private network.
 
-Choose one configuration method:
+Set the following environment variables on the machine running the bot:
 
-* **Existing local configuration:** keep your ignored `config.js`. It takes
-  precedence over the environment-backed example. The file must export
-  `{config}` with `dbUrl`, a 32-byte `Buffer` named `cryptoKey`, and a 16-byte
-  `Buffer` named `cryptoVector`.
-* **New local configuration:** copy `config.example.js` to `config.js` and fill
-  in those values, either directly or through its environment variables.
-* **Environment-only deployment:** leave `config.js` absent and set
-  `MONGODB_URI`, `CRYPTO_KEY_HEX` (64 hexadecimal characters), and
-  `CRYPTO_IV_HEX` (32 hexadecimal characters). The application then loads
-  `config.example.js` as its environment-backed configuration.
+| Variable | Value |
+| --- | --- |
+| `MONGODB_URI` | Your MongoDB connection string. |
+| `CRYPTO_KEY_HEX` | An encryption key containing exactly 64 hexadecimal characters, representing 32 bytes. |
+| `CRYPTO_IV_HEX` | An encryption vector containing exactly 32 hexadecimal characters, representing 16 bytes. |
 
-A connection string has the form
-`mongodb://USERNAME:PASSWORD@HOST:PORT/sr1egamebot`. URI-encode special characters
-in the username and password.
+A typical MongoDB connection string is:
 
-**For an existing database, reuse its exact encryption key and vector.** This
-update does not migrate stored ciphertext or generate replacement keys. Keep a
-backup of the database and its original encryption material together with your
-recovery procedures.
+```text
+mongodb://USERNAME:PASSWORD@HOST:PORT/sr1egamebot
+```
 
-For a **new database only**, `node make-crypto-vars.js` generates the two Buffer
-assignments in the ignored `crypto-vars.txt` file. Copy those assignments into
-`config.js`, or convert those same byte values to hex for environment-only
-configuration. Keep the generated material private and backed up.
+If your username or password contains special characters, URI-encode them. A provider-supplied `mongodb+srv://` address also works.
 
-If upgrading from the old Google Drive storage, see **Data Migration** below.
+For a **new database only**, generate the encryption values with:
 
-### Discord configuration and startup
+```sh
+node -e "const c=require('node:crypto');console.log('CRYPTO_KEY_HEX='+c.randomBytes(32).toString('hex'));console.log('CRYPTO_IV_HEX='+c.randomBytes(16).toString('hex'))"
+```
 
-Create a bot application in the [Discord Developer Portal](https://discord.com/developers/applications)
-and enable **Message Content Intent** for its existing prefix commands.
-Provide its token in either of these ways:
+Put each value into its matching environment variable, and keep a private backup with your database recovery information.
 
-* Set the `TOKEN` environment variable to the **raw bot token**, without a
-  `Bot ` prefix or a JSON object.
-* Create the ignored `discordauth.json` file next to `main.js`:
+**If the database already contains saved data, keep its original encryption key and vector. Changing either one can make that data unreadable.**
+
+You can configure the bot entirely through environment variables when `config.js` is absent. In that case, it reads the variables through `config.example.js`.
+
+If you have a local `config.js`, the bot uses it first. It must export `{config}` with these properties:
+
+- `dbUrl`: the MongoDB connection string.
+- `cryptoKey`: a 32-byte `Buffer`.
+- `cryptoVector`: a 16-byte `Buffer`.
+
+You can copy `config.example.js` to `config.js` if you prefer a local configuration file that reads the same environment variables. The older `make-crypto-vars.js` helper writes Buffer assignments to `crypto-vars.txt`.
+
+**Never commit your database credentials, encryption values, `config.js`, or `crypto-vars.txt` to a public repository.**
+
+### 3. Set up your Discord application
+
+Create a bot application, or open an existing one, in the [Discord Developer Portal](https://discord.com/developers/applications).
+
+On the **Bot** page, turn on **Message Content Intent**. GameBot reads `!` commands from messages, so this setting is required.
+
+Set **`TOKEN`** to your Discord bot token. Enter the token alone, with no JSON, quotation marks, or `Bot ` prefix. Use uppercase `TOKEN` for the variable name.
+
+If you're hosting locally, you can use `discordauth.json` beside `main.js` instead:
 
 ```json
-{"token": "your-bot-token"}
+{
+  "token": "YOUR_BOT_TOKEN"
+}
 ```
 
-`TOKEN` takes precedence over the local token file. An empty or malformed
-explicit `TOKEN` is an error; it does not silently fall back to local credentials.
+`TOKEN` takes precedence over `discordauth.json`. If `TOKEN` is present but empty or malformed, the bot won't start, even if the JSON file has a valid token.
 
-Start the bot with `npm start` or `node main.js`. Startup validates configuration,
-connects to MongoDB, initializes stored state, logs in to Discord, and then
-activates saved reminders and accepts commands. A startup failure closes opened
-resources and exits with a nonzero status so your process supervisor can handle
-restarts. It does not retry invalid credentials in a loop.
+**Keep the token private.** Never commit it to GitHub or show it in a screenshot.
 
-The `Procfile` continues to run `worker: node main.js`. On a platform that uses
-Procfiles, select the **worker** process and supply the configuration above.
-Invite your own bot application to your Discord server using its application ID
-and the permissions required for messages and reactions.
+### 4. Invite your bot to the server
 
-### Development checks
+In the Developer Portal, open **OAuth2 URL Generator** and select the `bot` scope. Give the bot these permissions in the channels where it will be used:
 
-CI uses the same Node/npm versions, a clean installation, syntax checks, offline
-regression tests, and an npm audit that fails for high or critical advisories.
-The tests replace Discord and MongoDB network boundaries; they do not establish
-that a live deployment can authenticate or that a real database migration works.
-Before deploying, use a separate test bot and database to check persisted macros,
-initiative, ammo, scenes, reactions, and reminders across a restart.
+- View Channels
+- Send Messages
+- Add Reactions
+- Read Message History
 
-### Data Migration
+Use the generated invitation link to add the bot to your server. Check its role and channel permissions, including access to any private GM channel.
 
-To migrate the data, first make sure MongoDB is installed and running. Make sure `config.js` is set up with the proper `this.dbUrl` value including MongoDB user credentials if you've turned on MongoDB's password authentication. Then go to Google Drive and right-click your `UserData` folder, and choose Download. Then rename the downloaded file to simply `UserData.zip` and place it in the same folder with the bot's code files. Then run `node ./migrate.js` from the bot's folder.
+GameBot uses prefix commands, so you don't need an Interactions Endpoint URL.
 
-After migrating, you will have more entries in the `folders` collection than were reported in the `migrate.js` output. This is normal; it happens because `node-stream-zip` only reports folder endpoints: `UserData/serverID/channelID/userID` gets reported as one folder, when actually it's four folders nested in each other.
+### 5. Start the bot
 
-### Hosting the Bot Elsewhere
+In the bot's directory, run:
 
-Unfortunately, this is beyond the scope of these instructions.
+```sh
+npm start
+```
 
-### Administrative commands
+You can also start it with `node main.js`.
 
-The legacy `!open`, `!showcache`, and `!clearcache` commands are disabled in the
-maintained branch. They inspect or change shared process state, and their output
-can contain data from other servers. No Discord account has an exception.
+At startup, GameBot checks its configuration, connects to MongoDB, loads stored data, and logs in to Discord. It restores saved reminders once Discord is ready.
 
-Manage the bot through your hosting account and database tools. Normal game
-commands remain available.
+Check the logs for successful database and Discord connections. Then enter this in a channel where the bot has access:
 
-## Shadowrun Dicebot Features
+```text
+!5
+```
 
-### :game_die: Plain Old d6\'s :game_die:
+For hosted installations, run GameBot as a continuously running **worker**. The included `Procfile` uses:
 
-* !***X***<br/>Roll ***X***d6 *without* Rule of 6<br/>***example:*** `!5` <br/> rolls 5d6 *without* Rule of 6
-* !X***t***<br/>Roll Xd6 *and total them*.<br/>***example:*** `!6t` <br/> rolls 6d6 and *adds them up*.
-* !Xt ***+Z***<br/>Roll Xd6, total them, and *add or subtract a modifier*.<br/>***example:*** `!6t -5` <br/> rolls 6d6, totals them, and *subtracts 5 from the total*.
+```text
+worker: node main.js
+```
 
-### :six: Rule of 6 & Target Numbers :dart:
+GameBot connects out to Discord. It doesn't run a website or expose an HTTP health-check endpoint.
 
-* ***!X!***<br/>Roll ***X***d6 ***with*** Rule of 6<br/>***example:*** `!5!` <br/> rolls 5d6 *with Rule of 6*
-* !X ***tnY***<br/>Roll *without* Rule of 6 against Target Number ***Y***<br/>***example:*** `!5 tn4` <br/> rolls 5d6 w/o Rule of 6 vs TN4
-* ***!X! tnY***<br/>Roll ***with*** Rule of 6 against Target Number ***Y***<br/>***example:*** `!5! tn4` <br/> rolls 5d6 w/ Rule of 6 vs TN4
+## Dice Commands
 
-### :boxing_glove: Opposed Rolls :boxing_glove:
+All commands start with `!`. Capitalization doesn't matter.
 
-* !A! tnB ***vsX!*** ***otnY***<br/>Roll *A*d6 (with Rule of 6) with tn *B*, opposed by *X*d6 (with Rule of 6) with opponent\'s TN *Y*<br/>:arrow_right: ***vsX*** = the number of dice the opponent throws (***vsX! for Rule of 6***)<br/>:arrow_right: ***otnY*** = the opponent\'s target number<br/>***example:*** `!5! tn3 vs6! otn4`<br/>Roll 5d6 (Rule of 6) with TN 3, against 6d6 (Rule of 6) with TN 4
+### Basic rolls
 
-### :1234: Multiple Rolls per Message :1234:
+| Command | Result |
+| --- | --- |
+| `!5` | Roll 5d6 without the Rule of 6. |
+| `!6t` | Roll 6d6 and add the results together. |
+| `!6t -5` | Roll 6d6, total the results, and subtract 5. |
+| `!6t +3` | Roll 6d6, total the results, and add 3. |
+| `!5!` | Roll 5d6 with the Rule of 6. |
+| `!5 tn4` | Roll 5d6 against target number 4 without the Rule of 6. |
+| `!5! tn4` | Roll 5d6 against target number 4 with the Rule of 6. |
 
-You can order GameBot to do multiple rolls with one message. Just separate the dice commands with semicolons.
+Change the numbers to suit the roll. Put a second `!` after the dice count when you want the Rule of 6.
 
-***example:*** `!1 ; 2t ; 3!; 4t +5 and a note for good measure`
+### Opposed tests
 
-Be careful not to use semicolons for any other reason.
+```text
+!A! tnB vsX! otnY
+```
 
-### :label: Notes :label:
+- `A`: your dice pool.
+- `B`: your target number.
+- `X`: the opponent's dice pool.
+- `Y`: the opponent's target number.
 
-Notes are OK, and your options can be in the middle of the note.
+The Rule of 6 is set separately for each side. Add `!` after either dice count to enable it.
 
-examples:
+Example:
 
-*  `!3! TN4 resist wagemage sorcery` :arrow_left: works
-*  `!3! resist wagemage sorcery TN4` :arrow_left: works
-*  `!3! resist TN4 wagemage sorcery` :arrow_left: works
-*  `resist wagemage sorcery !3! TN4` :arrow_left: won't work
+```text
+!5! tn3 vs6! otn4
+```
 
-### :fast_forward: Macros (Saved Rolls) :fast_forward:
+Your five dice roll against TN 3; the opponent's six dice roll against TN 4. Both use the Rule of 6.
 
-* !***save*** *name* *dice_command_without_preceding_bang*<br/>Creates or updates a named "dice command". *(See all the sections above for valid "dice commands".)*
-* !***roll*** *name*<br/>Rolls the saved "dice command" with the given name.
-* !***lm***<br/>Lists your saved dice command macros for that channel.
-* !***removemacro*** *name* or !***rmm*** *name*<br/>Removes one of your saved macros in that channel.
+### Multiple rolls
 
-### :recycle: Reroll :recycle:
+Use semicolons to put several rolls in one command:
 
-* Anyone can click the :game_die: reaction to reroll any *recent* roll.
-* Remove and re-add your reaction to keep re-rolling that roll.
+```text
+!1 ; 2t ; 3! ; 4t +5
+```
 
-## :boom: Initiative System :boom:
+Only the first roll needs `!` at the beginning. A semicolon inside a note starts another roll, so don't use one for ordinary punctuation.
 
-### Player setup:
+### Notes
 
-  :one: `!setgm @someone`<br/>  :two: `!setinit X Y`
+Put a note after the dice command if you want to label the roll. You can place the target number before, within, or after the note:
 
-### GM setup:
+```text
+!3! TN4 resist wagemage sorcery
+!3! resist wagemage sorcery TN4
+!3! resist TN4 wagemage sorcery
+```
 
-  :one: `!setgm`<br/>  :two: `!setplayers @player1 @player2 (etc)`<br/>  :three: `!setnpcinits` (see below)
+All three forms work. The dice command must come first; this form won't work:
 
-  **!setinit** syntax is `!setinit X Y` where X is the number of dice and Y is the modifier. For example, `!setinit 1 4` sets your initiative formula to 1d6+4. *(Or, for Cyberpunk, 1d10+4. It'll say 1d6+4, but it'll roll 1d10+4 if you roll Cyberpunk initiative.)*
+```text
+resist wagemage sorcery !3! TN4
+```
 
-  IMPORTANT: Commands won't work unless you @people correctly. Use the menu that pops-up while you type, or tab-completion.  **If it's highlighted blue, you did it right.**
+### Rerolls
 
-### :game_die: **Rolling Initiative** :game_die:
+Use the dice reaction on a recent roll to roll it again. To reroll a second time, remove your reaction and add it again.
 
-  :arrow_right: **!init** - Shadowrun 1e initiative<br/>  :arrow_right: **!initflip** - Shadowrun 1e initiative, reversed<br/>  :arrow_right: **!init2** - Shadowrun 2e initiative<br/>  :arrow_right: **!init2flip** - Shadowrun 2e initiative, reversed<br/>  :arrow_right: **!init3** - Shadowrun 3e initiative<br/>  :arrow_right: **!init3flip** - Shadowrun 3e initiative, reversed<br/>  :arrow_right: **!initcp** - Cyberpunk 2020 initiative<br/>
-  :arrow_right: **!initcpr** - Cyberpunk RED initiative
+Rerolls aren't restricted to the player who made the original roll.
 
-  The bot remembers stuff; you won't need to redo setup, just update whatever changes. ***However:***
+## Saved Rolls
 
-* Everything is linked to GM **and chat channel.**
-* If you move to a different channel, you must re-enter everything.
-* Multiple GM's can share a channel, but anyone playing in both groups must repeat their set-up steps (starting with !setgm).
-* To play in two games at the same time, you'll need two channels.
+Give a frequently used roll a name and call it up later:
 
-### :game_die: **Other initiative commands** :game_die:
+| Command | Action |
+| --- | --- |
+| `!save name dice_command` | Create or replace a saved roll. Leave off the dice command's opening `!`. |
+| `!roll name` | Roll the saved macro. |
+| `!lm` | List your saved macros for the current channel. |
+| `!removemacro name` or `!rmm name` | Remove a saved macro. |
 
-  ```
-  Shortcut  Full command    [Required] options
-  --------------------------------------------
-            !setgm          @someone
-  !si       !setinit        [X Y]
-  !setp     !setplayers     [@player1 @player2 etc]
-  !addp     !addplayers     [@player1 @player2 etc]
-  !lp       !listplayers
-  !rmp      !removeplayers  [@player1 @player2 etc]
-  !clrp     !clearplayers
-  !setn     !setnpcinits    [X1 Y1 label1 X2 Y2 label2 etc]
-  !addn     !addnpcinits    [X1 Y1 label1 X2 Y2 label2 etc]
-  !ln       !listnpcinits
-  !rmn      !removenpcinits [label1 label2 etc]
-  !clrn     !clearnpcinits
-  ```
+Example:
 
-### :dragon_face: **Adding NPC's** :dragon_face:
+```text
+!save pistols 5! tn4
+!roll pistols
+```
 
-  **!setnpcinits** and **!addnpcinits** syntax:<br/>`!(command) X Y label`<br/>Labels cannot have spaces or commas. Add as many NPCs as you want, separated by spaces.
+## Initiative
 
-  e.g. `!addnpcinits 1 5 thugs` (means the thugs have 1d6+5 initiative).
+### Player setup
 
-  If you have multiple NPC's with the same label, **!removeNPCInits** also accepts the format `!removenpcinits X Y label` which requires a full match. But, having multiple NPC's with the same label is confusing anyway, so maybe just don't do that.
+Select the GM for your game, then save your initiative dice and modifier:
 
-## :blue_book: Prepared Scenes with (or without) Music :blue_book: ##
+```text
+!setgm @YourGM
+!setinit 1 4
+```
 
-**It is strongly recommended** that you also read `!help gmscreen` so you can do your prep in secret!
+Here, `!setinit 1 4` means 1d6 + 4. Cyberpunk initiative uses d10s, although the stored formula may still be displayed as d6s.
 
-Every adventure has passages of text that must be given to the players at each new scene.
-You no longer need to type these out in real time! Now you can prepare the texts in advance via the bot, and deploy them easily later.
+Choose the GM from Discord's mention menu. An ordinary typed name without a linked mention won't work.
 
-!**setscene** name musicLink sceneText<br/>
-Creates or updates a named scene. The music link is optional. Scene text can have line breaks and formatting, and is only limited by Discord message length limits.<br/>
-**Example 1:** `!setscene example1 https://www.youtube.com/watch?v=zsq-tAz54Pg The orks burst through the door carrying uzis and a grudge.`<br/>
-**Example 2:** `!setscene example2 Suddenly the band stops playing as everyone stares at you in horror.`
+### GM setup
 
-!**getscene** name<br/>
-Deploys the named scene. The name of the scene is **not** displayed in the output. Music (if any) is shown as a link, with Discord's embedded player below that.
+```text
+!setgm
+!setplayers @Player1 @Player2
+!setnpcinits 1 5 thug 2 7 lieutenant
+```
 
-!**listscenes**<br/>
-Shows a list of scene names that you've saved to the current channel (or play channel, if you're using the virtual GM Screen feature).
+Run `!setgm` without a mention to identify yourself as GM. Then add the player list and any NPC initiative formulas.
 
-!**delscene** name<br/>
-Deletes one or more scenes identified by name(s). To delete multiple scenes, simply put spaces between the names. **Deleted scenes cannot be recovered!**
+### Roll initiative
 
-## :ninja: Virtual GM Screen :ninja: ##
+| Command | System |
+| --- | --- |
+| `!init` | Shadowrun First Edition. |
+| `!initflip` | Shadowrun First Edition, reversed order. |
+| `!init2` | Shadowrun Second Edition. |
+| `!init2flip` | Shadowrun Second Edition, reversed order. |
+| `!init3` | Shadowrun Third Edition. |
+| `!init3flip` | Shadowrun Third Edition, reversed order. |
+| `!initcp` | Cyberpunk 2020. |
+| `!initcpr` | Cyberpunk RED. |
 
-Using this feature, **ammo tracking**, **reminders**, **initiative** and **scene** commands can be done in a hidden channel.
+Initiative settings are saved until you change them.
 
-Players still need to **!setgm** and **!setinit** in the play channel.
+The setup belongs to a particular **GM and channel**. Set it up again if you move to another channel. Several GMs can use the same channel, but players changing groups must select the correct GM and enter their settings again. Separate channels are preferable for simultaneous games.
 
-**It's simple!**
+### Initiative commands
 
-Step :one:: Go to your hidden channel<br/>
-This will be the channel where you do all your prep from now on.
+| Full command | Shortcut | Arguments |
+| --- | --- | --- |
+| `!setgm` | — | `@someone`, or no mention to select yourself. |
+| `!setinit` | `!si` | `dice modifier` |
+| `!setplayers` | `!setp` | `@Player1 @Player2 ...` |
+| `!addplayers` | `!addp` | `@Player1 @Player2 ...` |
+| `!listplayers` | `!lp` | None. |
+| `!removeplayers` | `!rmp` | `@Player1 @Player2 ...` |
+| `!clearplayers` | `!clrp` | None. |
+| `!setnpcinits` | `!setn` | `dice modifier label`, repeated for each NPC. |
+| `!addnpcinits` | `!addn` | `dice modifier label`, repeated for each NPC. |
+| `!listnpcinits` | `!ln` | None. |
+| `!removenpcinits` | `!rmn` | `label1 label2 ...` |
+| `!clearnpcinits` | `!clrn` | None. |
 
-Step :two:: **!setchannel** linkToPlayChannel<br/>
-Your "play channel" is the channel players have access to; your main channel for the game.<br/>
-You make a channel link by typing the # sign and typing the channel name or choosing it from the pop-up menu.<br/>
-**If the channel name is highlighted blue, you did it right.**
+### NPCs
 
-Step :three:: Do your prep!
+Enter each NPC as:
 
-**Notes about running various commands behind the GM screen:**<br/>
-:arrow_forward: !getscene will output to the play channel so you don't need to reveal your scene titles.<br/>
-:arrow_forward: You can now run !init in secret, or you can prep your NPC's in the secret channel and then do the !init command in the play channel.
+```text
+dice modifier label
+```
 
-## :alarm_clock: Reminders :alarm_clock: ##
+Example:
 
-The bot can DM reminders of your upcoming game sessions to your players.
+```text
+!addnpcinits 1 5 thug1 1 5 thug2 2 7 lieutenant
+```
 
-**!addreminder** sessionDate&Time timer1 timer2 etc<br/>
-* *sessionDate&Time* needs the format **YYYY-MM-DD*T*HH:MM** *(note the "T" separating date from time)*
-* ***sessionDate&Time*** **is now based on the GMT+0 time zone**
-* Note the hour of the session must be in 24-hour format; e.g. for 6pm, you enter 18:00
-* Each *timer* needs a format of minutes, hours, or days, such as **10m**, **3h**, **7d** etc
-* **Example:** `!addreminder 2022-05-04T18:00 30m 6h 1d 3d 7d`
-Sets a game session at 6pm on May 4, and five reminders (30 minutes before the session, etc)
-* The reminders will go to everyone you've got in your players list at the time when you added the reminder.
-* To manage your players list, see the `!setplayers`, `!addplayers`, etc commands under `!help init`
+NPC labels can't contain spaces or commas. Use a different label for each NPC so you can remove the correct entry later.
 
-**!listreminders**<br/>
-* Shows a list of your upcoming reminders, and the ID's you'd use to cancel them if necessary, plus who they're going to.
-* Due to Discord message size-limits this command can be slow if you have more than a few reminders.
+Remove an NPC with:
 
-**!cancelreminder** id#1 id#2 etc<br/>
-Cancels one or more reminders. See `!listreminders` to get the ID's.
+```text
+!removenpcinits thug1
+```
 
-## :gun: **Ammo Tracking** :gun: ##
+If several entries have the same label, include the full formula to identify the one you want:
 
-GameBot can track ammo during combat, enforcing max ROF and weapon capacity.
+```text
+!removenpcinits 1 5 thug
+```
 
-**!ammo addgun** name maxROF ammoContainerType ammoCapacity ammoTypes<br/>
-Adds a weapon for ammo tracking purposes. The name must not have any spaces or commas.<br/>
-If the gun is compatible with multiple types of round, separate them with spaces.<br/>
-You should keep the name short, since you'll be typing it for the `!ammo fire` and `!ammo reload` commands.<br/>
-If the rules don't specify maxROF any other way, don't forget autofire is Skill Rating +1.<br/>
-**Example:** `!ammo addgun uzi3 7 clip 16 slug`
+## Prepared Scenes
 
-**!ammo delgun** name<br/>
-**Example:** `!ammo delgun uzi3`<br/>
-Removes the uzi3 from your inventory.
+Write scene descriptions ahead of the session and store them in the bot. When the scene comes up, send the description to the game channel. A scene can also have a music link.
 
-**!ammo addammo** qtyContainers containerType qtyRounds roundType maxRounds<br/>
-The maxRounds should match the ammoCapacity of the gun you want to use this ammo for.<br/>
-The roundType should match one of the ammoTypes for the matching weapon.<br/>
-**Example:** `!ammo addammo 10 clip 16 slug 16`<br/>
-Adds 10 clips that are fully loaded with 16 slugs each. This matches the uzi3.
+### Create or update a scene
 
-**!ammo delammo** qtyContainers containerType qtyRounds roundType maxRounds<br/>
-**Example:** `!ammo delammo 4 clip 16 slug 16`<br/>
-Removes 4 of those clips for your uzi3 from your inventory.
+```text
+!setscene name sceneText
+```
 
-**!ammo list**<br/>
-Shows a list of guns, and what they're loaded with, plus a list of your ammo.<br/>
-Empty clips are not shown, so track those yourself.
+To include music:
 
-**!ammo fire** weaponName nbrShots<br/>
-Depletes a number of rounds (nbrShots) from the gun identified by weaponName, assuming nbrShots doesn't exceed the gun's maxROF.<br/>
-If you try to shoot more rounds than are currently loaded, the weapon will be depleted of all ammo and you will be told how many rounds were shot before the weapon clicked empty.
+```text
+!setscene name musicLink sceneText
+```
 
-**!ammo reload** weaponName<br/>or<br/>**!ammo reload** weaponName shotType<br/>
-The first form assumes you only have one compatible ammo type for that weapon.<br/>
-**Example:** `!ammo reload uzi3`<br/>
-The second form allows you to specify which type of round you want to load, for cases where your weapon has multiple compatible ammoTypes *and* you have compatible ammo entries for 2 or more of those ammoTypes.<br/>
-**Example:** `!ammo reload enfield shot`
+Example:
 
-## Misc ##
+```text
+!setscene ambush The loading-bay door rises. Three armed figures are waiting on the other side.
+```
 
-  Commands are not case-sensitive. Go WiLd WitH tHaT.
+Put the music link between the scene name and its description. You can use line breaks and Discord formatting in scene text, subject to Discord's message-length limits.
 
-  You can find my Patreon at https://patreon.com/nathanhawks if this bot helps you game.
+### Send a scene
 
-## Legal
+```text
+!getscene ambush
+```
 
-This software is released as-is under the terms of the UnLicense; it is available to the public domain.
+The players receive the scene description and its music link, if one was saved. The scene's stored name isn't included.
+
+### List or delete scenes
+
+```text
+!listscenes
+!delscene ambush
+```
+
+`!listscenes` lists scenes for the current channel. If you're using the GM screen, it lists scenes for the linked game channel.
+
+You can delete several scenes at once:
+
+```text
+!delscene ambush arrival meeting
+```
+
+**Scene deletion is permanent.**
+
+## Virtual GM Screen
+
+A private GM channel lets you prepare material without posting it where players can see it. The setup works with the scene, initiative, ammunition, and reminder commands.
+
+1. Create a channel your players cannot view. Give the bot access to it.
+2. In that private channel, run `!setchannel #game-channel`.
+3. Select the game channel through Discord's channel-mention menu so the reference is linked.
+4. Prepare your material in the private channel.
+
+Players must still use `!setgm` and `!setinit` in the game channel.
+
+`!getscene` posts the prepared scene to the linked game channel. You can set up NPC initiative behind the screen, then roll in the game channel. Running initiative in the private channel keeps the result private.
+
+The in-Discord instructions are available through `!help gmscreen`.
+
+## Session Reminders
+
+GameBot can DM players before a scheduled session.
+
+```text
+!addreminder sessionDateAndTime timer1 timer2 ...
+```
+
+Use this date-and-time format:
+
+```text
+YYYY-MM-DDTHH:MMZ
+```
+
+Times use a 24-hour clock. `Z` means UTC (GMT+0). Without a time-zone suffix, JavaScript interprets the time using the host computer's local time zone. Include `Z` if you want the scheduled time to be unambiguous.
+
+Each timer tells the bot how early to send a reminder:
+
+| Timer | Reminder time |
+| --- | --- |
+| `10m` | Ten minutes before the session. |
+| `3h` | Three hours before the session. |
+| `7d` | Seven days before the session. |
+
+Example:
+
+```text
+!addreminder 2027-05-04T18:00Z 30m 6h 1d 3d 7d
+```
+
+This example schedules the May 4, 2027 session for 18:00 UTC and sends five reminders.
+
+The recipient list is taken from your saved players **when you create the reminder**. Set the list with `!setplayers` or add players with `!addplayers` before scheduling.
+
+### List reminders
+
+```text
+!listreminders
+```
+
+The list shows reminder IDs and recipients. Long lists may be split across multiple Discord messages.
+
+### Cancel reminders
+
+```text
+!cancelreminder id1 id2
+```
+
+Use the reminder IDs returned by `!listreminders`.
+
+## Ammo Tracking
+
+Ammo tracking stores weapon capacity, compatible ammunition, and maximum rate of fire. Enter the values from the rules and weapon you're using.
+
+### Add a weapon
+
+```text
+!ammo addgun name maxROF ammoContainerType ammoCapacity ammoTypes
+```
+
+Example:
+
+```text
+!ammo addgun uzi3 7 clip 16 slug
+```
+
+Here, `uzi3` has a maximum rate of fire of 7, holds a 16-round clip, and accepts `slug` ammunition.
+
+Weapon names can't contain spaces or commas. Choose a short name; you'll need it whenever you fire or reload. Separate multiple ammunition types with spaces.
+
+### Remove a weapon
+
+```text
+!ammo delgun uzi3
+```
+
+### Add ammunition
+
+```text
+!ammo addammo qtyContainers containerType qtyRounds roundType maxRounds
+```
+
+Example:
+
+```text
+!ammo addammo 10 clip 16 slug 16
+```
+
+This stores ten clips with sixteen slug rounds in each. The container type, ammunition type, and capacity must match the weapon.
+
+### Remove ammunition
+
+```text
+!ammo delammo qtyContainers containerType qtyRounds roundType maxRounds
+```
+
+Example:
+
+```text
+!ammo delammo 4 clip 16 slug 16
+```
+
+This removes four matching clips from the inventory.
+
+### List weapons and ammunition
+
+```text
+!ammo list
+```
+
+`!ammo list` shows the weapons, their loaded ammunition, and what's left in inventory. It doesn't list empty clips; you'll need to track those yourself.
+
+### Fire
+
+```text
+!ammo fire weaponName nbrShots
+```
+
+Example:
+
+```text
+!ammo fire uzi3 3
+```
+
+The bot subtracts the rounds fired, up to the weapon's maximum rate of fire. If you request more shots than remain loaded, it fires the remaining rounds and reports the actual number fired.
+
+### Reload
+
+```text
+!ammo reload weaponName
+```
+
+Example:
+
+```text
+!ammo reload uzi3
+```
+
+If more than one ammunition type fits the weapon, name the type to load:
+
+```text
+!ammo reload enfield shot
+```
+
+## Other Commands and Notes
+
+- `!help` — list help topics.
+- `!help main` — dice-command help.
+- `!help init` — initiative help.
+- `!skipstatus` — hide the encryption status notice on bot messages.
+
+Command names aren't case-sensitive: `!INIT3` and `!init3` do the same thing.
+
+## Development Checks
+
+From the repository directory, run:
+
+```sh
+npm run check
+npm test
+npm audit --omit=dev --audit-level=high
+```
+
+The automated tests use stand-ins for Discord and MongoDB. They check code behavior without connecting to live services.
+
+Before deploying, test the commands you use with a separate Discord bot and database. Restart the test bot when checking whether data survives a restart. Automated tests can't verify live credentials, channel permissions, or the outcome of an old-data migration.
+
+## Legacy Data Migration
+
+This applies only to older GameBot installations that saved data in Google Drive. Skip it for a new installation.
+
+`migrate.js` imports a downloaded `UserData` archive. Back up the archive and the destination MongoDB database first. **Running the importer more than once can duplicate or damage data.** The legacy importer has not been verified here against a real migration.
+
+1. Configure the MongoDB connection for the destination database.
+2. Download the old `UserData` folder from Google Drive as a ZIP archive.
+3. Rename it `UserData.zip` and put it beside `migrate.js`.
+4. In the bot's directory, run:
+
+```sh
+node migrate.js
+```
+
+The importer may report fewer folders than the archive appears to contain. In a path such as `UserData/serverID/channelID/userID`, the ZIP library may count only the final directory entry.
+
+## Admin Commands
+
+The maintained branch disables `!open`, `!showcache`, and `!clearcache`. These legacy commands can expose shared process data from other servers. No Discord account has an exception.
+
+Manage the bot through your hosting account and database tools. Normal game commands remain available.
+
+## Credits and License
+
+The original SR1eGameBot was written by **Nathan Hawks (AstroMacGuffin)**. This repository is my maintained fork.
+
+Original source: [NathanHawks/SR1eGameBot](https://github.com/NathanHawks/SR1eGameBot).
+
+The code is provided under the **Unlicense** and dedicated to the public domain, without warranty.
