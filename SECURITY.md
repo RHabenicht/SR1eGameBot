@@ -2,7 +2,7 @@
 
 ## Supported Code
 
-Security fixes go into the latest code on `maintenance/dependencies-startup`. Older branches and saved snapshots do not receive separate fixes.
+Security fixes cover the latest code on `master` and `maintenance/dependencies-startup`. Older commits and saved snapshots do not receive separate fixes.
 
 ## Reporting a Vulnerability
 

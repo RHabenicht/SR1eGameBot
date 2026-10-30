@@ -4,6 +4,10 @@ I maintain this fork of Nathan Hawks' SR1eGameBot for Discord games using Shadow
 
 There are also commands for initiative, ammunition, session reminders, and scene descriptions. You can prepare material in a private GM channel and send it to the game channel during play. The initiative system includes Cyberpunk 2020 and Cyberpunk RED.
 
+[Add SR1e-3e_GameBot to your Discord server](https://discord.com/oauth2/authorize?client_id=1565396579568062634&scope=bot&permissions=85056)
+
+Choose your server and authorize the bot. Then enter `!help` in a text channel where the bot can read and send messages.
+
 If the bot is already running, start with [Dice Commands](#dice-commands).
 
 - [Installation and Hosting](#installation-and-hosting)
@@ -24,7 +28,7 @@ If the bot is already running, start with [Dice Commands](#dice-commands).
 
 ## Installation and Hosting
 
-These instructions cover the `maintenance/dependencies-startup` branch.
+These instructions cover the maintained Node.js version of the bot.
 
 You need Node.js, MongoDB, and a Discord bot application. You can run the bot on your own computer or a hosting service that keeps a Node.js process running. If that computer or process stops, the bot goes offline.
 
@@ -39,7 +43,7 @@ node --version
 npm --version
 ```
 
-Download or clone the branch, open a terminal in the bot's directory, and install the dependencies:
+Download or clone this repository, open a terminal in the bot's directory, and install the dependencies:
 
 ```sh
 npm ci --ignore-scripts
@@ -574,7 +578,7 @@ The importer may report fewer folders than the archive appears to contain. In a 
 
 ## Admin Commands
 
-The maintained branch disables `!open`, `!showcache`, and `!clearcache`. These legacy commands can expose shared process data from other servers. No Discord account has an exception.
+The maintained version disables `!open`, `!showcache`, and `!clearcache`. These legacy commands can expose shared process data from other servers. No Discord account has an exception.
 
 Manage the bot through your hosting account and database tools. Normal game commands remain available.
 
