@@ -7,14 +7,19 @@ database while it is under development.
 
 ## Current status
 
-The first porting stage contains configuration validation, safe startup
-sequencing, and deterministic-testable Shadowrun d6 rolling primitives. It is
-not yet a complete Discord bot and does not yet connect to Discord or MongoDB.
+This is an incomplete development port. Python services now cover configuration
+and startup sequencing, d6 rolls and command parsing, AES-256-CBC compatibility,
+the existing MongoDB folder/string schema, macros, scenes, reminders, initiative
+data and ammunition. The Discord event loop and command wiring are not complete,
+so this is not yet a runnable replacement for the Node.js worker.
 
-The port must preserve the current command interface, MongoDB records,
-AES-256-CBC compatibility, reminder restoration, and disabled legacy admin
-commands. Live checks require a separate Discord application and isolated test
-database.
+Run the isolated unit suite with `uv run --locked python -m unittest discover -s tests -v`.
+The tests use synthetic credentials and an in-memory MongoDB substitute. They do
+not prove compatibility against a live database or Discord application.
+
+The port must preserve the current command interface, saved records, encryption
+compatibility, reminder restoration and disabled legacy admin commands. Live
+checks require a separate Discord application and isolated test database.
 
 ## Configuration
 
