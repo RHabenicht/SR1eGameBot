@@ -15,3 +15,10 @@ UserData.zip
 tmp.js
 main.bak.js
 crypto-vars.txt
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
